@@ -13,13 +13,13 @@ public class DiscordClient
 	ClientWebSocket socket;
 	private string? sessionId;
 	private RestClient client;
-    private CustomHttpClient httpClient;
+	private CustomHttpClient httpClient;
 
 	public DiscordClient(string token)
 	{
 		client = new("https://discord.com/api/v9/invites");
 		this.token = token;
-        httpClient = new();
+		httpClient = new();
 		sessionId = null;
 		socket = new();
 
@@ -81,7 +81,7 @@ public class DiscordClient
 		}
 	}
 
-	private int GetBuildNumber()
+	private static int GetBuildNumber()
 	{
 		RestClient client = new("https://discord.com");
 		RestRequest contentRequest = new("app");
@@ -100,7 +100,7 @@ public class DiscordClient
 		return 0;
 	}
 
-	public string GenerateXProps()
+	private static string GenerateXProps()
 	{
 		if (Consts.genningXprops)
 		{
@@ -124,7 +124,7 @@ public class DiscordClient
 			browser_user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) discord/1.0.9146 Chrome/120.0.6099.291 Electron/28.2.10 Safari/537.36",
 			browser_version = "28.2.10",
 			client_build_number = GetBuildNumber(),
-			native_build_number = 47543,
+			native_build_number = 48018,
 			client_event_source = "null",
 			design_id = 0
 		};
@@ -204,7 +204,7 @@ public class DiscordClient
 		}
 	}
 
-	private async Task<string> ReceiveMessageAsync(ClientWebSocket webSocket)
+	private static async Task<string> ReceiveMessageAsync(ClientWebSocket webSocket)
 	{
 		byte[] buffer = new byte[1024];
 		while (webSocket.State == WebSocketState.Open)
@@ -237,7 +237,7 @@ public class DiscordClient
 		return "";
 	}
 
-	private async Task SendMessageAsync(ClientWebSocket webSocket, string message)
+	private static async Task SendMessageAsync(ClientWebSocket webSocket, string message)
 	{
 		byte[] buffer = Encoding.UTF8.GetBytes(message);
 		await webSocket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None);
