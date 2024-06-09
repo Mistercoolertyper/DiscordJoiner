@@ -5,7 +5,7 @@ namespace DiscordJoiner;
 
 public class CustomHttpClient
 {
-    private HttpClient _client;
+    private readonly HttpClient _client;
 
     public CustomHttpClient()
     {

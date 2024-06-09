@@ -1,19 +1,20 @@
-﻿using System.Net;
+﻿using System.Text.RegularExpressions;
 using System.Net.WebSockets;
-using System.Text;
-using System.Text.RegularExpressions;
+using System.Data.SQLite;
 using Newtonsoft.Json;
+using System.Text;
+using System.Net;
 using RestSharp;
 
 namespace DiscordJoiner;
 
-public class DiscordClient
+public partial class DiscordClient
 {
-	private string token;
-	ClientWebSocket socket;
+	private readonly string token;
+	readonly ClientWebSocket socket;
 	private string? sessionId;
-	private RestClient client;
-	private CustomHttpClient httpClient;
+	private readonly RestClient client;
+	private readonly CustomHttpClient httpClient;
 
 	public DiscordClient(string token)
 	{
@@ -26,6 +27,63 @@ public class DiscordClient
 		Main().GetAwaiter().GetResult();
 	}
 
+	private static int GetNativeBuild()
+	{
+		string dataSource = Path.Join(Environment.GetEnvironmentVariable("LOCALAPPDATA"), "Discord", "installer.db");
+
+		using SQLiteConnection connection = new($"Data Source={dataSource};Version=3;");
+		try
+		{
+			connection.Open();
+
+			string keyToFind = "latest/host/app/stable/win/x64";
+			string query = "SELECT value FROM key_values WHERE key = @key";
+
+			using SQLiteCommand command = new(query, connection);
+			command.Parameters.AddWithValue("@key", keyToFind);
+
+			using SQLiteDataReader reader = command.ExecuteReader();
+			if (reader.Read())
+			{
+				return ((dynamic)JsonConvert.DeserializeObject((string)reader["value"])!).metadata_version;
+			}
+			else
+			{
+				Console.WriteLine($"\nKey '{keyToFind}' not found in the 'key_values' table.");
+			}
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine($"An error occurred: {ex.Message}");
+		}
+		return 48018;
+	}
+
+	public static void Init()
+	{
+		var data = new
+		{
+			os = "Windows",
+			browser = "Discord Client",
+			release_channel = "stable",
+			client_version = "1.0.9146",
+			os_version = "10.0.19045",
+			os_arch = "x64",
+			app_arch = "x64",
+			system_locale = "en-US",
+			browser_user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) discord/1.0.9146 Chrome/120.0.6099.291 Electron/28.2.10 Safari/537.36",
+			browser_version = "28.2.10",
+			client_build_number = GetBuildNumber(),
+			native_build_number = GetNativeBuild(),
+			client_event_source = "null",
+			design_id = 0
+		};
+
+		string jsonData = JsonConvert.SerializeObject(data).Replace("\"null\"", "null");
+
+		Consts.xprops = Convert.ToBase64String(Encoding.UTF8.GetBytes(jsonData));
+	}
+
 	private async Task Main()
 	{
 		await socket.ConnectAsync(new Uri("wss://gateway.discord.gg/?encoding=json&v=9&compress=none"), CancellationToken.None);
@@ -35,7 +93,7 @@ public class DiscordClient
 			op = 2,
 			d = new
 			{
-				token = token,
+				token,
 				capabilities = 16381,
 				properties = new
 				{
@@ -87,7 +145,7 @@ public class DiscordClient
 		RestRequest contentRequest = new("app");
 		contentRequest.AddHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0");
 		var contentResponse = client.Execute(contentRequest);
-		var scripts = new Regex(@"/assets/.{26}\.js", RegexOptions.IgnoreCase).Matches(contentResponse.Content!).Reverse();
+		var scripts = MyRegex().Matches(contentResponse.Content!).Reverse();
 		foreach(var script in scripts)
 		{
 			RestRequest scriptRequest = new(script.Value);
@@ -98,42 +156,6 @@ public class DiscordClient
 			}
 		}
 		return 0;
-	}
-
-	private static string GenerateXProps()
-	{
-		if (Consts.genningXprops)
-		{
-			while (Consts.genningXprops) Thread.Sleep(500);
-		}
-		if (Consts.xprops != "")
-		{
-			return Consts.xprops;
-		}
-		Consts.genningXprops = true;
-		var data = new
-		{
-			os = "Windows",
-			browser = "Discord Client",
-			release_channel = "stable",
-			client_version = "1.0.9146",
-			os_version = "10.0.19045",
-			os_arch = "x64",
-			app_arch = "x64",
-			system_locale = "en-US",
-			browser_user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) discord/1.0.9146 Chrome/120.0.6099.291 Electron/28.2.10 Safari/537.36",
-			browser_version = "28.2.10",
-			client_build_number = GetBuildNumber(),
-			native_build_number = 48018,
-			client_event_source = "null",
-			design_id = 0
-		};
-
-		string jsonData = JsonConvert.SerializeObject(data).Replace("\"null\"", "null");
-
-		Consts.xprops = Convert.ToBase64String(Encoding.UTF8.GetBytes(jsonData));
-		Consts.genningXprops = false;
-		return Consts.xprops;
 	}
 
 	public void JoinServer(string invite)
@@ -183,7 +205,7 @@ public class DiscordClient
 			"x-debug-options: bugReporterEnabled",
 			"x-discord-locale: en-US",
 			"x-discord-timezone: America/Los_Angeles",
-			$"x-super-properties: {GenerateXProps()}"
+			$"x-super-properties: {Consts.xprops}"
 		];
 
 		var response = httpClient.Post($"https://discord.com/api/v9/invites/{invite}", JsonConvert.SerializeObject(new
@@ -242,4 +264,7 @@ public class DiscordClient
 		byte[] buffer = Encoding.UTF8.GetBytes(message);
 		await webSocket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None);
 	}
+
+	[GeneratedRegex(@"/assets/.{26}\.js", RegexOptions.IgnoreCase, "en-BI")]
+	private static partial Regex MyRegex();
 }
