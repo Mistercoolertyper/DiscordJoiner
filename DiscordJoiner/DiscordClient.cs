@@ -29,34 +29,10 @@ public partial class DiscordClient
 
 	private static int GetNativeBuild()
 	{
-		string dataSource = Path.Join(Environment.GetEnvironmentVariable("LOCALAPPDATA"), "Discord", "installer.db");
-
-		using SQLiteConnection connection = new($"Data Source={dataSource};Version=3;");
-		try
-		{
-			connection.Open();
-
-			string keyToFind = "latest/host/app/stable/win/x64";
-			string query = "SELECT value FROM key_values WHERE key = @key";
-
-			using SQLiteCommand command = new(query, connection);
-			command.Parameters.AddWithValue("@key", keyToFind);
-
-			using SQLiteDataReader reader = command.ExecuteReader();
-			if (reader.Read())
-			{
-				return ((dynamic)JsonConvert.DeserializeObject((string)reader["value"])!).metadata_version;
-			}
-			else
-			{
-				Console.WriteLine($"\nKey '{keyToFind}' not found in the 'key_values' table.");
-			}
-		}
-		catch (Exception ex)
-		{
-			Console.WriteLine($"An error occurred: {ex.Message}");
-		}
-		return 48018;
+		RestClient client = new();
+		RestRequest request = new("https://updates.discord.com/distributions/app/manifests/latest?channel=stable&platform=win&arch=x64", Method.Get);
+		var response = client.Execute(request);
+		return ((dynamic)JsonConvert.DeserializeObject(response.Content!)!).metadata_version;
 	}
 
 	public static void Init()
